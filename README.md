@@ -15,13 +15,14 @@
 This custom hacking minigame is entirely made with [Redscript](https://github.com/jac3km4/redscript) using [Codeware](https://github.com/psiberx/cp2077-codeware) and with the ***HUGE*** help of [Ink Playground](https://github.com/psiberx/cp2077-playground)
 
 ## What is it ?
-Inspired by [this](https://sharkiller.ddns.net/nopixel_minigame/hackingdevice/) minigame, the objective is simple : Find the pattern above in this ever-moving/wrapping grid.
+Inspired by [this minigame](https://sharkiller.ddns.net/nopixel_minigame/hackingdevice/), the objective is simple : Find the pattern above in this ever-moving/wrapping grid.
 - Each correct guess unlocks a program
 - Each mistake locks the program
 - The Minigame is considered "Succeeded" if you unlock at least one program
+![](preview/Hackshowcase.gif)
 
 # Beta
-As seen above, this is a beta, a lot of small parts of the minigame haven't been polished yet. this includes possible UI bugs & possible mod incompatibilities. The UI has been tested on an 1920x1080 monitor on a 1080p resolution. I don't know the possible issues with other (possibly bigger) monitors/bigger resolution
+As seen above, this is a beta, a lot of small parts of the minigame (especially decorative parts) haven't been polished yet. this includes possible UI bugs & possible mod incompatibilities. The UI has been tested on an 1920x1080 monitor on a 1080p resolution. I don't know the possible issues with other (possibly bigger) monitors/bigger resolution
 
 ## Debug
 In order to access the minigame you can :
