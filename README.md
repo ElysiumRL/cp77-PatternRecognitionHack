@@ -20,20 +20,20 @@ Inspired by [this](https://sharkiller.ddns.net/nopixel_minigame/hackingdevice/) 
 - Each mistake locks the program
 - The Minigame is considered "Succeeded" if you unlock at least one program
 
-## How to play
-Just click on the grid.
-
 # Beta
-As seen above, this is a beta, a lot of small parts of the minigame haven't been polished yet. this includes :
-- The horribly unreadable code (it's an absolute UI mess I promise I'll clean this up)
-- Some texts overlapping images
-- The possibility to skip the 11s introduction video not yet implemented
+As seen above, this is a beta, a lot of small parts of the minigame haven't been polished yet. this includes possible UI bugs & possible mod incompatibilities. The UI has been tested on an 1920x1080 monitor on a 1080p resolution. I don't know the possible issues with other (possibly bigger) monitors/bigger resolution
 
 ## Debug
 In order to access the minigame you can :
 - Start hacking any access point
-- (the real dev debug) : Hold "Choice_2" Button (Secondary Interaction button)
+- (debug) : Hold "Choice_2" Button (Secondary Interaction button)
 
+## Missing Features
+These are the features that have yet to be made before full release
+- Introduction Video Skip
+- Random programs
+- More Pattern types
+- Random settings
 
 # Special Thanks
 - jekky - [Redscript](https://github.com/jac3km4/redscript)
