@@ -27,11 +27,6 @@ public class HackProgramPanel extends inkCustomController
 	
 	protected let m_imageBorder: wref<InkImageWidget>;
 
-
-	//protected let programName: ref<inkText>;
-
-	//protected let programDescription: ref<inkText>;
-	
 	protected let programDescription : ref<InkTextWidget>;
 
 	protected let programName : ref<InkTextWidget>;
@@ -286,10 +281,6 @@ public class HackProgramPanel extends inkCustomController
 		this.progressBarStatusText.textWidget.SetTintColor(MainColors.ActiveRed());
 		this.progressBarStatusText.textWidget.SetText("Failed");
 	}
-
-
-
-
 
 
 	protected func CreateAnimations() -> Void

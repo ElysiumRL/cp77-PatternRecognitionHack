@@ -1,14 +1,11 @@
 module CustomHackingSystem.Hacks.PatternRecognition
 import Codeware.UI.*
 
-public class HackingMinigameButton extends CustomButton {
+public class HackingMinigameButton extends CustomButton
+{
 	protected let m_isFlipped: Bool;
-
-	//protected let m_bg: wref<inkImage>;
-
-	//protected let m_fill: wref<inkImage>;
 	
-	protected let minigameOwner: ref<HackingGrid>;
+	protected let minigameOwner: ref<PatternRecognitionHack>;
 
     public const func AllowDrag() -> Bool
 	{
@@ -35,6 +32,8 @@ public class HackingMinigameButton extends CustomButton {
 		frame.SetAnchor(inkEAnchor.Fill);
 		frame.SetNineSliceScale(true);
 		frame.SetNineSliceGrid(new inkMargin(0.0, 0.0, 10.0, 0.0));
+		frame.SetTexturePart(n"cell_flip_fg");
+
 		frame.Reparent(root);
 
 		let label: ref<inkText> = new inkText();
@@ -58,7 +57,6 @@ public class HackingMinigameButton extends CustomButton {
 		this.m_frame = frame;
 
 		this.SetRootWidget(root);
-		this.ApplyFlippedState();
 	}
 
 	protected func CreateAnimations() -> Void
@@ -66,36 +64,20 @@ public class HackingMinigameButton extends CustomButton {
 
 	}
 
-	protected func ApplyFlippedState() -> Void {
-		//this.m_bg.SetTexturePart(this.m_isFlipped ? n"cell_flip_bg" : n"cell_bg");
-		//this.m_fill.SetTexturePart(this.m_isFlipped ? n"cell_flip_bg" : n"cell_bg");
+	protected func ApplyFlippedState() -> Void
+	{
 		this.m_frame.SetTexturePart(this.m_isFlipped ? n"cell_flip_fg" : n"cell_fg");
 	}
-//
-//	protected func ApplyDisabledState() -> Void {
-//		let reverseAnimOpts: inkAnimOptions;
-//		reverseAnimOpts.playReversed = !this.m_isDisabled;
-//
-//		this.m_disabledRootAnimProxy.Stop();
-//		this.m_disabledRootAnimProxy = this.m_root.PlayAnimationWithOptions(this.m_disabledRootAnimDef, reverseAnimOpts);
-//	}
 
-	protected func ApplyHoveredState() -> Void {
-		//if(IsDefined(this.m_textOpeningAnimProxy))
-		//{
-		//	this.m_textOpeningAnimProxy.Stop();
-		//}
+
+	protected func ApplyHoveredState() -> Void
+	{
 		this.m_label.TintShift(MainColors.Grey(), MainColors.CombatRed(), 0.2, true, !this.m_isHovered);
 	}
 
-	protected func ApplyPressedState() -> Void {
+	protected func ApplyPressedState() -> Void
+	{
 		this.m_label.TintShift(MainColors.CombatRed(), MainColors.Grey(), 0.1, true, !this.m_isPressed);
-	}
-
-	public func SetFlipped(isFlipped: Bool) -> Void {
-		this.m_isFlipped = isFlipped;
-
-		this.ApplyFlippedState();
 	}
 
 	public func SetText(text: String) -> Void
@@ -104,19 +86,22 @@ public class HackingMinigameButton extends CustomButton {
 		this.displayedText = text;
 	}
 
-	public static func Create(text: String) -> ref<HackingMinigameButton> {
+	public static func Create(text: String) -> ref<HackingMinigameButton>
+	{
 		let button: ref<HackingMinigameButton> = new HackingMinigameButton();
 		button.CreateInstance();
 		button.m_label.SetText(text);
 		return button;
 	}
 
-	protected cb func OnHoverOver(evt: ref<inkPointerEvent>) -> Bool {
+	protected cb func OnHoverOver(evt: ref<inkPointerEvent>) -> Bool
+	{
 		super.OnHoverOver(evt);
 		this.minigameOwner.OnHoverInAllSelections(this.indexInGrid);
 	}
 
-	protected cb func OnHoverOut(evt: ref<inkPointerEvent>) -> Bool {
+	protected cb func OnHoverOut(evt: ref<inkPointerEvent>) -> Bool
+	{
 		super.OnHoverOut(evt);
 		this.minigameOwner.OnHoverOutAllSelections(this.indexInGrid);
 	}

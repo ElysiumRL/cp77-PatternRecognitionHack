@@ -1,4 +1,5 @@
 import CustomHackingSystem.Hacks.PatternRecognition.*
+import PatternRecognitionHack.ModSettings.*
 
 //left for debug purposes only
 @wrapMethod(gameuiInGameMenuGameController)
@@ -26,8 +27,9 @@ protected cb func OnAction(action: ListenerAction, consumer: ListenerActionConsu
 
 		if Equals(state, gamePSMVehicle.Default)
 		{
-			//TODO: replace by CustomHackingSystem.StartMinigame()
-			PatternRecognitionHackPopup.Show(this);
+			let minigameSettings:ref<PatternRecognitionHackSettings> = new PatternRecognitionHackSettings();
+			minigameSettings.letterType = EPatternRecognitionHackLetterType.Alphabetical;
+			PatternRecognitionHack.StartMinigame(minigameSettings, this.GetPlayerControlledObject().GetGame());
 			ListenerActionConsumer.DontSendReleaseEvent(consumer);
 		}
 	}
@@ -47,22 +49,28 @@ private final func RegisterGlobalBlackboards() -> Void
 	}
 }
 
-//Entirely Replaces AccessPoint hacks
-@replaceMethod(Device)
+//Entry point for access points
+@wrapMethod(Device)
 private final func DisplayConnectionWindowOnPlayerHUD(shouldDisplay: Bool, attempt: Int32) -> Void
 {
-	let hackingMinigameBlackboard:ref<IBlackboard> = GameInstance.GetBlackboardSystem(this.GetGame()).Get(GetAllBlackboardDefs().HackingMinigame);
-
-	if (IsDefined(hackingMinigameBlackboard))
+	let modSettings = new PatternRecognitionModSettings();
+	if(!modSettings.isEnabled || RandF() > modSettings.hackOverrideProbability)
 	{
-		let inGameMenuControllerVariant:Variant = hackingMinigameBlackboard.GetVariant(GetAllBlackboardDefs().HackingMinigame.InGameMenuController);
-		let inGameMenuController:ref<gameuiInGameMenuGameController> = FromVariant<ref<gameuiInGameMenuGameController>>(inGameMenuControllerVariant);
-    	
-		//TODO: replace by CustomHackingSystem.StartMinigame()
-		PatternRecognitionHackPopup.Show(inGameMenuController);
-
+		wrappedMethod(shouldDisplay, attempt);
+		return;
 	}
-	this.TogglePersonalLink(false, this.GetPlayerMainObject());
-	this.TurnOffDevice();
-	this.DeactivateDevice();
+
+	if(NotEquals(this as AccessPoint, null))
+	{
+		let minigameSettings:ref<PatternRecognitionHackSettings> = PatternRecognitionHackSettings.Default();
+		PatternRecognitionHack.StartMinigame(minigameSettings, this.GetGame());
+
+		this.TogglePersonalLink(false, this.GetPlayerMainObject());
+		this.TurnOffDevice();
+		this.DeactivateDevice();
+	}
+	else
+	{
+		wrappedMethod(shouldDisplay,attempt);
+	}
 }

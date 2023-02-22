@@ -4,6 +4,9 @@ import Codeware.UI.*
 
 public class PatternRecognitionHackPopup extends CustomMinigameHackPopup
 {
+	protected let minigameRef:ref<PatternRecognitionHack>;
+
+
 	public func UseCursor() -> Bool
 	{
 		return true;
@@ -12,10 +15,8 @@ public class PatternRecognitionHackPopup extends CustomMinigameHackPopup
 	protected cb func OnCreate() -> Void
 	{
 		super.OnCreate();
-
-		let minigame:ref<HackingGrid> = HackingGrid.Create();
-		minigame.popupParent = this;
-		minigame.Reparent(this.baseWidget);
+		this.minigameRef.popupParent = this;
+		this.minigameRef.Reparent(this.baseWidget);
 	}
 
 	protected cb func OnInitialize() -> Void
@@ -23,9 +24,11 @@ public class PatternRecognitionHackPopup extends CustomMinigameHackPopup
 		super.OnInitialize();
 	}
 
-	public static func Show(requester: ref<inkGameController>) -> Void
+	public static func Show(requester: ref<inkGameController>, minigameSettings: ref<PatternRecognitionHackSettings>) -> Void
 	{
 		let popup: ref<PatternRecognitionHackPopup> = new PatternRecognitionHackPopup();
+		popup.minigameRef = PatternRecognitionHack.Create();
+		popup.minigameRef.settings = minigameSettings;
 		popup.Open(requester);
 	}
 }

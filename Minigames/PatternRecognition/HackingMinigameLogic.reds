@@ -7,31 +7,34 @@ import HackingExtensions.CustomMinigame.*
 
 // Pattern Recognition Hack (by Elysium)
 // Repo link : https://github.com/ElysiumRL/cp77-PatternRecognitionHack
+// There might be some issues with current/latest builds
+// if you find one of them, please report them on either github or nexusmods
 
 
+//TODO: Handle non-ascii letters (greek,runic and some weird utf-8 bonkers characters)
+//TODO: (2) There's a lot of things to optimize (especially array accesses) and overall algorithms
+//TODO: (3) Try with many settings combinations
 
-//TODO: try to see how UTF-8/16 characters are handled
-//TODO: (2) test with enum types different from HackingMinigame
-enum EHackingGridLetterType
+enum EPatternRecognitionHackLetterType
 {
-    //from CDPR's base Hacking Minigame (often referenced as minigame_v2)
+    //from CDPR's base Hacking Minigame
     HackingMinigame = 0,
     //Numbers ([0-9])
     Numerical = 1,
     //Regular Alphabet ([A-Z])
     Alphabetical = 2,
     //Regular Alphabet ([A-Z]) + Numbers ([0-9])
-    Alphanumerical = 32,
-    //Greek Alphabet
+    Alphanumerical = 3,
+    //Greek Alphabet (only some of those appear on screen)
     Greek = 4,
-    //Some weird runes
+    //Some weird runes (None of those appear on screen)
     Runic = 5,
     //Count (Don't use it)
     Count = 6
 }
 
 
-public class HackingGridSettings
+public class PatternRecognitionHackSettings
 {
     //TweakDBID of the programs to acquire
 	public let programs: array<TweakDBID>;
@@ -52,28 +55,28 @@ public class HackingGridSettings
     public let answerLength: Uint32 = 3u;
 
     //Type of the box content (Not Implemented Yet)
-    public let letterType: EHackingGridLetterType = EHackingGridLetterType.HackingMinigame;
+    public let letterType: EPatternRecognitionHackLetterType = EPatternRecognitionHackLetterType.HackingMinigame;
 
     //Advanced Settings
-    public let advancedSettings: ref<HackingGridAdvancedSettings>;
+    public let advancedSettings: ref<PatternRecognitionHackAdvancedSettings>;
 
-    public static func Default() -> ref<HackingGridSettings>
+    public static func Default() -> ref<PatternRecognitionHackSettings>
     {
-        let settings:ref<HackingGridSettings> = new HackingGridSettings();
-        let advancedSettings:ref<HackingGridAdvancedSettings> = new HackingGridAdvancedSettings();
+        let settings:ref<PatternRecognitionHackSettings> = new PatternRecognitionHackSettings();
+        let advancedSettings:ref<PatternRecognitionHackAdvancedSettings> = new PatternRecognitionHackAdvancedSettings();
         settings.advancedSettings = advancedSettings;
         return settings;
     }
 
 }
 
-public class HackingGridAdvancedSettings
+public class PatternRecognitionHackAdvancedSettings
 {
     //True to allow an answer to possibly appear many times in the grid
     let allowMultipleSameAnswers: Bool = false;
 
     //Amount of letters/symbols per box
-	let symbolAmountPerBox : Uint32 = 2u;
+	let symbolAmountPerBox : Uint32 = 1u;
     
     //True to remove the answer from screen after a certain time
     let shouldHideAnswerAfterTime: Bool = false;
@@ -82,81 +85,139 @@ public class HackingGridAdvancedSettings
     let remainingUnitTimeBeforeHiding: Float = 0.5;
 }
 
-public class BoxContent
+public abstract class PatternRecognitionHackCallback extends DelayCallback
 {
-    let text:String;
-
-    let indexInGrid:Int32;
+    public let controller: ref<PatternRecognitionHack>;
 }
 
-public abstract class HackingGridCallback extends DelayCallback
+public class MinigameBoxData
 {
-    public let controller: ref<HackingGrid>;
+    //Displayed Text
+    public let text: String;
+
+    //Index (place) in the grid (used to find answers & current choice position)
+    public let indexInGrid: Int32;
 }
 
-public class HackingGrid extends CustomMinigame
+public class PatternRecognitionHack extends CustomMinigame
 {
-    public static func Create() -> ref<HackingGrid>
+    public static func StartMinigame(settings: ref<PatternRecognitionHackSettings>, gameInstance: GameInstance) -> Void
     {
-        let minigame:ref<HackingGrid> = new HackingGrid();
+        if(!GameInstance.IsValid(gameInstance))
+        {
+            LogChannel(n"DEBUG","[PatternRecognitionHack::StartMinigame] Game Instance provided not valid : Aborting Minigame initialization");
+        }
+
+	    let hackingMinigameBlackboard: ref<IBlackboard> = GameInstance.GetBlackboardSystem(gameInstance).Get(GetAllBlackboardDefs().HackingMinigame);
+
+	    if (IsDefined(hackingMinigameBlackboard))
+	    {
+	    	let inGameMenuControllerVariant:Variant = hackingMinigameBlackboard.GetVariant(GetAllBlackboardDefs().HackingMinigame.InGameMenuController);
+	    	
+            let inGameMenuController:ref<gameuiInGameMenuGameController> = FromVariant<ref<gameuiInGameMenuGameController>>(inGameMenuControllerVariant);
+
+            if(IsDefined(inGameMenuController))
+            {
+	    	    PatternRecognitionHackPopup.Show(inGameMenuController,settings);
+            }
+            else
+            {
+                LogChannel(n"DEBUG","[PatternRecognitionHack::StartMinigame] InGameMenu Game Controller not set in the HackingMinigame Blackboard Definition");
+            }
+	    }
+        else
+        {
+            LogChannel(n"DEBUG","[PatternRecognitionHack::StartMinigame] HackingMinigame Blackboard Definition Not found");
+        }
+    }
+
+    public static func Create() -> ref<PatternRecognitionHack>
+    {
+        let minigame:ref<PatternRecognitionHack> = new PatternRecognitionHack();
         minigame.SetMinigameDefaults();
         minigame.SetMinigameInstanceDefaults();
         return minigame;
     }
 
+    //(disabled) background video
     private let videoBackground: ref<InkVideoWidget>;
 
+    //This represents the minigame UI buttons, although they hold some texts, they don't own all the data
     private let allButtons: array<wref<HackingMinigameButton>>;
     
-    private let instanceBoxContent : array<ref<BoxContent>>;
+    //This contains the minigame box data
+    private let instanceBoxContent : array<ref<MinigameBoxData>>;
 
     //Answers for the current instance
     public let answers : Int32;
 
+    //Panel containing the boxes
     protected let uniformGridPanel: wref<inkCompoundWidget>;
 
+    //Total amount of boxes
     public let totalBoxes: Int32;
 
-    //time left
+    //Progress bar displaying the instance time left
     protected let instanceProgressBar: wref<CustomProgressBar>;
     
+    //Progress bar displaying the time before boxes swapping places
     protected let swapBoxTimerProgressBar: wref<CustomProgressBar>;
 
+    //Current time
     private let currentTime: Float = 0.0;
     
+    //True if the user can start the minigame
     private let canStartGame: Bool = false;
     
+    //True if the user is playing (it doesn't really have that much of an use though)
     private let isInGame: Bool = false;
 
+    //True to update logic gameplay timers
     private let shouldUpdateGameTimers: Bool = false;
     
+    //Start button
     private let startButton: ref<SimpleButton>;
     
+    //Quit button
     private let endButton: ref<SimpleButton>;
 
+    //Text displaying the answer to find
     private let answerText: ref<inkText>;
 
+    //Current attempt count
     public let currentAttempts:Int32;
 
-    public let settings: ref<HackingGridSettings>;
+    //Minigame current settings
+    public let settings: ref<PatternRecognitionHackSettings>;
 
+    //Vertical panel containing the UI program panels
+    //The inkVerticalPanel automatically aligns the panels from top to bottom
     private let programsVerticalPanel: ref<inkVerticalPanel>;
 
+    //Array containing the UI panels
     private let allPrograms: array<ref<HackProgramPanel>>;
 
+    //Time before the boxes are swapping places
     public let moveBoxContentTimer: Float = 0.0;
 
+    //Intro video
     public let introVideo:ref<InkVideoWidget>;
 
+    //Array containing all the video cosmetic UIs in the minigame (also called fluffs)
     public let allFluffs:array<ref<InkVideoWidget>>;
 
+    //Text displaying the remaining time
     public let remainingTimeText: ref<InkTextWidget>;
 
+    //A small credit text on the top right
     public let creditFluffText : ref<InkTextWidget>;
 
+    //Array containing all the image cosmetic UIs in the minigame (also called fluffs)
     public let allImageFluffs:array<ref<InkImageWidget>>;
 
+    //End screen (Success/Failure) text
     public let endScreenText:ref<InkTextWidget>;
+
 
     protected func CreateWidgets() -> Void
     {
@@ -173,31 +234,25 @@ public class HackingGrid extends CustomMinigame
         uniformGridPanel.SetWrappingWidgetCount(this.settings.gridSize);
         uniformGridPanel.SetFitToContent(true);
         uniformGridPanel.Reparent(root);
-
-        let x:Int32 = 0;
-        let y:Int32 = 0;
+        
         ArrayClear(this.allButtons);
-        while (y < Cast<Int32>(this.settings.gridSize))
-        {
-            while (x < Cast<Int32>(this.settings.gridSize))
-            {
-                let newButton:ref<HackingMinigameButton> = HackingMinigameButton.Create("--");
-                
-                newButton.ToggleAnimations(false);
-                newButton.ToggleSounds(false);
-                newButton.m_root.SetInteractive(false);
-                newButton.Reparent(uniformGridPanel);
-                newButton.m_root.SetOpacity(0.0);
-                newButton.minigameOwner = this;
-                ArrayPush(this.allButtons, newButton);
-                x += 1;
-            }
-            x = 0;
-            y += 1;
-        }
-        x = 0;
-        y = 0;
 
+        let i : Int32 = 0;
+        while(i < this.totalBoxes)
+        {
+            let newButton: ref<HackingMinigameButton> = HackingMinigameButton.Create("--");
+            newButton.ToggleAnimations(false);
+            newButton.ToggleSounds(false);
+            newButton.m_root.SetInteractive(false);
+            newButton.m_root.SetOpacity(0.0);
+            newButton.minigameOwner = this;
+            newButton.Reparent(uniformGridPanel);
+            ArrayPush(this.allButtons, newButton);
+            i += 1;
+        }
+        i = 0;
+
+        //TODO: make better button instantiations
 		this.startButton = SimpleButton.Create();
 		this.startButton.SetName(n"StartButton");
 		this.startButton.SetText("Start");
@@ -238,22 +293,22 @@ public class HackingGrid extends CustomMinigame
         this.swapBoxTimerProgressBar = ScannerProgressBar.Create(new Vector2(300,22), new Vector2(250.0,-600.0), 0.0);
         this.swapBoxTimerProgressBar.m_root.SetOpacity(0.0);
 		this.swapBoxTimerProgressBar.Reparent(root);
-
-
-		let label: ref<inkText> = new inkText();
-		label.SetName(n"label");
-		label.SetFontFamily("base\\gameplay\\gui\\fonts\\raj\\raj.inkfontfamily");
-		label.SetFontStyle(n"Medium");
-		label.SetFontSize(50);
-		label.SetLetterCase(textLetterCase.UpperCase);
-        label.SetMargin(0.0,-800.0,0.0,0.0);
-		label.SetTintColor(MainColors.Red());
-		label.SetAnchor(inkEAnchor.Fill);
-		label.SetHorizontalAlignment(textHorizontalAlignment.Center);
-		label.SetVerticalAlignment(textVerticalAlignment.Center);
-		label.SetText("-- -- -- -- --");
-		label.Reparent(root);
         
+		this.answerText = new inkText();
+		this.answerText.SetName(n"label");
+		this.answerText.SetFontFamily("base\\gameplay\\gui\\fonts\\raj\\raj.inkfontfamily");
+		this.answerText.SetFontStyle(n"Medium");
+		this.answerText.SetFontSize(50);
+		this.answerText.SetLetterCase(textLetterCase.UpperCase);
+        this.answerText.SetMargin(0.0,-800.0,0.0,0.0);
+		this.answerText.SetTintColor(MainColors.Red());
+		this.answerText.SetAnchor(inkEAnchor.Fill);
+		this.answerText.SetHorizontalAlignment(textHorizontalAlignment.Center);
+		this.answerText.SetVerticalAlignment(textVerticalAlignment.Center);
+		this.answerText.SetText("-- -- -- -- --");
+		this.answerText.Reparent(root);
+
+
 		this.programsVerticalPanel = new inkVerticalPanel();
 		this.programsVerticalPanel.SetName(n"programsVerticalPanel");
 		this.programsVerticalPanel.SetFitToContent(true);
@@ -263,18 +318,13 @@ public class HackingGrid extends CustomMinigame
 		this.programsVerticalPanel.SetChildMargin(new inkMargin(0.0, 75.0, 0.0, 0.0));
 		this.programsVerticalPanel.Reparent(root);
 
+//TODO: remove these placeholders
         ArrayPush(this.settings.programs, t"MinigameProgram.DatamineV1");
         ArrayPush(this.settings.programs, t"MinigameProgram.DatamineV2");
         ArrayPush(this.settings.programs, t"MinigameProgram.DatamineV3");
 
         this.allProgramsTDBID = this.settings.programs;
-
-        //ArrayPush(this.settings.programs,t"MinigameProgram.unlockVehicleHard");
-        //ArrayPush(this.settings.programs,t"MinigameProgram.unlockVehicleMedium");
-        //ArrayPush(this.settings.programs,t"MinigameProgram.unlockVehicleImpossible");
-        //ArrayPush(this.settings.programs,t"MinigameProgram.unlockVehicleHard");
-        //ArrayPush(this.settings.programs,t"MinigameProgram.unlockVehicleMedium");
-
+        
         for program in this.settings.programs
         {
             let newProgramPanel:ref<HackProgramPanel> = HackProgramPanel.Create(program);
@@ -295,11 +345,9 @@ public class HackingGrid extends CustomMinigame
         this.remainingTimeText.root.SetOpacity(0.0);
         
         //this.videoBackground = InkVideoWidget.CreateBackground(root, 1.0);
-        this.introVideo = InkVideoWidget.CreateBackground(root, 1.0,r"base\\movies\\fullscreen\\reboot-skin.bk2");
-        //this.introVideo.video.SetVideoPath(r"base\\movies\\fullscreen\\reboot-skin.bk2");
-        //this.introVideo.videoPath = r"base\\movies\\fullscreen\\reboot-skin.bk2";
+        this.introVideo = InkVideoWidget.CreateBackground(root, 1.0, r"base\\movies\\fullscreen\\reboot-skin.bk2");
 
-        this.answerText = label;
+        //this.answerText = label;
         this.root = root;
 
         this.uniformGridPanel = uniformGridPanel;
@@ -330,7 +378,7 @@ public class HackingGrid extends CustomMinigame
     {
         if(!IsDefined(this.settings))
         {
-            this.settings = HackingGridSettings.Default();
+            this.settings = PatternRecognitionHackSettings.Default();
         }
         this.CreateWidgets();
     }
@@ -355,10 +403,9 @@ public class HackingGrid extends CustomMinigame
         let revealProgramsCallback: ref<RevealPrograms> = RevealPrograms.Create(this);
         GameInstance.GetDelaySystem(this.GetGame()).DelayCallback(revealProgramsCallback, 3.0, false);
 
-
         //Reveal Grid after 9 seconds (nearly before end)
-        let revealHackingGridCallback: ref<RevealHackingGrid> = RevealHackingGrid.Create(this);
-        this.introVideo.QueueEventDuringVideo(revealHackingGridCallback, 9.0);
+        let revealPatternRecognitionHackCallback: ref<RevealPatternRecognitionHack> = RevealPatternRecognitionHack.Create(this);
+        this.introVideo.QueueEventDuringVideo(revealPatternRecognitionHackCallback, 9.0);
         
         //Reveal Progress bars after 5 seconds (during the introduction video)
         let revealStatusCallback: ref<RevealStatus> = RevealStatus.Create(this);
@@ -372,12 +419,14 @@ public class HackingGrid extends CustomMinigame
 
     protected func RegisterStartButtonListeners() -> Void
     {
+        //Start Game on click
         this.startButton.RegisterToCallback(n"OnBtnClick", this, n"StartGame");
         this.canStartGame = true;
     }
 
     protected func RegisterQuitButtonListeners() -> Void
     {
+        //Quit Game on click
         this.endButton.RegisterToCallback(n"OnBtnClick", this, n"QuitGame");
     }
 
@@ -402,6 +451,18 @@ public class HackingGrid extends CustomMinigame
             LogChannel(n"DEBUG","Failure");
             break;
         }
+    }
+
+    public func OnMinigameSuccess()
+    {
+        let successCallback:ref<OnGameSuccess> = OnGameSuccess.Create(this);
+        GameInstance.GetDelaySystem(this.GetGame()).DelayCallback(successCallback, 1.0, false);
+    }
+
+    public func OnMinigameFailure()
+    {
+        let failureCallback:ref<OnGameFailure> = OnGameFailure.Create(this);
+        GameInstance.GetDelaySystem(this.GetGame()).DelayCallback(failureCallback, 1.0, false);
     }
 
     public func SetMinigameInstanceState(newState: HackingMinigameState) -> Void
@@ -450,7 +511,6 @@ public class HackingGrid extends CustomMinigame
         if (this.canStartGame)
         {
             this.shouldUpdateGameTimers = true;
-            this.minigameState = HackingMinigameState.InProgress;
             this.isInGame = true;
             this.allPrograms[this.currentProgramIndex].SetPanelState(EHackProgramPanelState.InProgress);
             for button in this.allButtons
@@ -618,7 +678,7 @@ public class HackingGrid extends CustomMinigame
         let boxIndex:Int32 = 0;
         while (boxIndex < ArraySize(this.instanceBoxContent))
         {
-            let box: ref<BoxContent> = this.instanceBoxContent[boxIndex];
+            let box: ref<MinigameBoxData> = this.instanceBoxContent[boxIndex];
             if (box.indexInGrid != this.answers)
             {
                 let i:Int32 = 0;
@@ -655,9 +715,9 @@ public class HackingGrid extends CustomMinigame
         return answerAsText;
     }
 
-    public func GetAnswerBoxContent() -> array<ref<BoxContent>>
+    public func GetAnswerBoxContent() -> array<ref<MinigameBoxData>>
     {
-        let boxes:array<ref<BoxContent>>;
+        let boxes:array<ref<MinigameBoxData>>;
         let i:Int32 = 0;
         while (i < Cast<Int32>(this.settings.answerLength))
         {
@@ -674,8 +734,6 @@ public class HackingGrid extends CustomMinigame
         let i: Int32 = 0;
         let j: Int32 = 0;
 
-        //this is SUPER NOT OPTIMIZED AT ALL
-        //DONT DO THIS IRL
         while (i < ArraySize(this.allButtons))
         {
             if(this.allButtons[i].indexInGrid == this.answers)
@@ -694,7 +752,7 @@ public class HackingGrid extends CustomMinigame
 
     public func SwapBoxContents() -> Void
     {
-        let contentCopy:array<ref<BoxContent>>;
+        let contentCopy:array<ref<MinigameBoxData>>;
 
         for content in this.instanceBoxContent
         {
@@ -704,31 +762,11 @@ public class HackingGrid extends CustomMinigame
         let i:Int32 = 0;
         while (i < ArraySize(contentCopy))
         {
-            this.instanceBoxContent[i] = contentCopy[this.GetBoxIndexWrapped(i - 1,Cast<Int32>(this.settings.gridSize * this.settings.gridSize))];
+            this.instanceBoxContent[i] = contentCopy[this.GetBoxIndexWrapped(i - 1,this.totalBoxes)];
             i += 1;
         }
         this.UpdateAllBoxesText();
 
-    }
-
-    public func GetBoxesFromIndexInGrid(indexInGrid:Int32,length:Int32) -> array<ref<BoxContent>>
-    {
-        let retVal:array<ref<BoxContent>>;
-        for box in this.instanceBoxContent
-        {
-            if(box.indexInGrid == indexInGrid)
-            {
-                let i:Int32 = 0;
-                while(i < length)
-                {
-                    ArrayPush(retVal,box);
-                    i += 1;
-                }
-                return retVal;
-            }
-        }
-
-        return retVal;
     }
 
     public func UpdateAllBoxesText() -> Void
@@ -742,35 +780,35 @@ public class HackingGrid extends CustomMinigame
         }
     }
 
+    //Thanks Github/StackOverflow
+    //The previous GetBoxIndexWrapped was a bit unoptimized. This oneliner seems to be working very nicely
     public func GetBoxIndexWrapped(integer:Int32, maximum: Int32) -> Int32
     {
         return integer >= 0 ? integer % maximum : (integer % maximum + maximum) % maximum;
     }
 
-    public func GenerateAllBoxContents() -> array<ref<BoxContent>>
+    public func GenerateAllBoxContents() -> array<ref<MinigameBoxData>>
     {
-        let allContents: array<ref<BoxContent>>;
+        let allContents: array<ref<MinigameBoxData>>;
         let letterPattern:array<String> = this.GetBoxText();
 
-        let x: Int32 = 0;
-        let y: Int32 = 0;
-        let total: Int32 = 0;
-        while (y < Cast<Int32>(this.settings.gridSize))
+        let i:Int32 = 0;
+        let symbolAmount:Int32 = 0;
+
+        while(i < this.totalBoxes)
         {
-            while (x < Cast<Int32>(this.settings.gridSize))
+            let content:ref<MinigameBoxData> = new MinigameBoxData();
+            content.text = "";
+            while(symbolAmount < Cast<Int32>(this.settings.advancedSettings.symbolAmountPerBox))
             {
-                let content:ref<BoxContent> = new BoxContent();
-                content.text = letterPattern[RandRange(0, ArraySize(letterPattern))];
-                content.indexInGrid = total;
-                ArrayPush(allContents,content);
-                x += 1;
-                total += 1;
+                content.text += letterPattern[RandRange(0, ArraySize(letterPattern))];
+                symbolAmount += 1;
             }
-            x = 0;
-            y += 1;
+            symbolAmount = 0;
+            content.indexInGrid = i;
+            ArrayPush(allContents,content);
+            i += 1;
         }
-        x = 0;
-        y = 0;
 
         return allContents;
     }
@@ -787,22 +825,8 @@ public class HackingGrid extends CustomMinigame
                 this.moveBoxContentTimer += 1.0 / this.settings.boxMovingSpeedPerSec;
                 this.SwapBoxContents();
             }
-            this.swapBoxTimerProgressBar.SetProgress(this.moveBoxContentTimer / 1.0 / this.settings.boxMovingSpeedPerSec);
-            let remainingUintTime:Float = this.currentTime / this.settings.maximumTime;
-            remainingUintTime = MaxF(remainingUintTime,0.0);
 
-            this.instanceProgressBar.SetProgress(remainingUintTime);
-            
-            this.remainingTimeText.textWidget.SetText(FloatToStringPrec(this.currentTime,3));
-            if(remainingUintTime <= 0.3)
-            {
-                this.remainingTimeText.textWidget.SetTintColor(MainColors.CombatRed());
-            }
-            else
-            {
-                this.remainingTimeText.textWidget.SetTintColor(MainColors.ActiveBlue());
-            }
-
+            this.UpdateUI(deltaTime);
             if(this.currentTime <= 0.0)
             {
                 this.SetMinigameInstanceState(HackingMinigameState.Failed);
@@ -817,64 +841,55 @@ public class HackingGrid extends CustomMinigame
         this.moveBoxContentTimer -= deltaTime;
     }
 
+    protected func UpdateUI(deltaTime: Float)
+    {
+        this.swapBoxTimerProgressBar.SetProgress(this.moveBoxContentTimer / 1.0 / this.settings.boxMovingSpeedPerSec);
+        
+        let remainingUnitTime: Float = this.currentTime / this.settings.maximumTime;
+        
+        remainingUnitTime = MaxF(remainingUnitTime,0.0);
+
+        this.instanceProgressBar.SetProgress(remainingUnitTime);
+        
+        this.remainingTimeText.textWidget.SetText(FloatToStringPrec(this.currentTime,3));
+        
+        if(remainingUnitTime <= 0.3)
+        {
+            this.remainingTimeText.textWidget.SetTintColor(MainColors.CombatRed());
+        }
+        else
+        {
+            this.remainingTimeText.textWidget.SetTintColor(MainColors.ActiveBlue());
+        }
+    }
+
+
     public func GetBoxText() -> array<String>
     {
         switch (this.settings.letterType)
         {
-        case EHackingGridLetterType.HackingMinigame:
+        case EPatternRecognitionHackLetterType.HackingMinigame:
             return ["1C","55","BD","E9","7A","FF"];
-        case EHackingGridLetterType.Numerical:
+        case EPatternRecognitionHackLetterType.Numerical:
             return ["0","1","2","3","4","5","6","7","8","9"];
-        case EHackingGridLetterType.Alphabetical:
+        case EPatternRecognitionHackLetterType.Alphabetical:
             return ["A","B","C","D","E","F","G","H","I","J","K","L","M","N","O","P","Q","R","S","T","U","V","W","X","Y","Z"];
-        case EHackingGridLetterType.Alphanumerical:
+        case EPatternRecognitionHackLetterType.Alphanumerical:
             return ["A","B","C","D","E","F","G","H","I","J","K","L","M","N","O","P","Q","R","S","T","U","V","W","X","Y","Z","0","1","2","3","4","5","6","7","8","9"];
-        case EHackingGridLetterType.Greek:
+        //Only a few most used greek letters do appear
+        case EPatternRecognitionHackLetterType.Greek:
             return ["Α","Β","Γ","Δ","Ε","Ζ","Η","Θ","Ι","Κ","Λ","Μ","Ν","Ξ","Ο","Π","Ρ","Σ","Τ","Υ","Φ","Χ","Ψ","Ω"];
-        case EHackingGridLetterType.Runic:
+        //None of those appear on screen
+        case EPatternRecognitionHackLetterType.Runic:
             return ["ᚠ","ᚥ","ᚧ","ᚨ","ᚩ","ᚬ","ᚭ","ᚻ","ᛐ","ᛑ","ᛒ","ᛓ","ᛔ","ᛕ","ᛖ","ᛗ","ᛘ","ᛙ","ᛚ","ᛛ","ᛜ","ᛝ","ᛞ","ᛟ","ᛤ"];
         }
     }
 }
 
-
-
-public class OnGameInstanceSuccess extends HackingGridCallback
+public class OnGameSuccess extends PatternRecognitionHackCallback
 {
     public func Call() -> Void
     {
-
-    }
-    public static func Create(controller:ref<HackingGrid>) -> ref<OnGameInstanceSuccess>
-    {
-        let callback:ref<OnGameInstanceSuccess> = new OnGameInstanceSuccess();
-        callback.controller = controller;
-        return callback;
-    }
-}
-
-public class OnGameInstanceFailure extends HackingGridCallback
-{
-    public func Call() -> Void
-    {
-
-    }
-
-    public static func Create(controller:ref<HackingGrid>) -> ref<OnGameInstanceFailure>
-    {
-        let callback:ref<OnGameInstanceFailure> = new OnGameInstanceFailure();
-        callback.controller = controller;
-        return callback;
-    }
-
-
-}
-
-public class OnGameSuccess extends HackingGridCallback
-{
-    public func Call() -> Void
-    {
-        LogChannel(n"DEBUG","OnGameSuccess");
         this.controller.endScreenText.root.FadeInEntry(true, false, true, 0.0);
         this.controller.endScreenText.textWidget.SetTintColor(MainColors.ActiveGreen());
         this.controller.endScreenText.textWidget.SetText("Success");
@@ -888,7 +903,7 @@ public class OnGameSuccess extends HackingGridCallback
         this.controller.endButton.m_root.SetVisible(true);
     }
 
-    public static func Create(controller:ref<HackingGrid>) -> ref<OnGameSuccess>
+    public static func Create(controller:ref<PatternRecognitionHack>) -> ref<OnGameSuccess>
     {
         let callback:ref<OnGameSuccess> = new OnGameSuccess();
         callback.controller = controller;
@@ -896,7 +911,7 @@ public class OnGameSuccess extends HackingGridCallback
     }
 }
 
-public class OnGameFailure extends HackingGridCallback
+public class OnGameFailure extends PatternRecognitionHackCallback
 {
     public func Call() -> Void
     {
@@ -913,7 +928,7 @@ public class OnGameFailure extends HackingGridCallback
 
     }
 
-    public static func Create(controller:ref<HackingGrid>) -> ref<OnGameFailure>
+    public static func Create(controller:ref<PatternRecognitionHack>) -> ref<OnGameFailure>
     {
         let callback:ref<OnGameFailure> = new OnGameFailure();
         callback.controller = controller;
@@ -921,17 +936,17 @@ public class OnGameFailure extends HackingGridCallback
     }
 }
 
-public class RestartGameInstance extends HackingGridCallback
+public class RestartGameInstance extends PatternRecognitionHackCallback
 {
     public func Call() -> Void
     {
-        if(IsDefined(this.controller))
+        if (IsDefined(this.controller))
         {
             this.controller.StartGameInstance();
         }
     }
 
-    public static func Create(controller:ref<HackingGrid>) -> ref<RestartGameInstance>
+    public static func Create(controller:ref<PatternRecognitionHack>) -> ref<RestartGameInstance>
     {
         let callback:ref<RestartGameInstance> = new RestartGameInstance();
         callback.controller = controller;
@@ -939,9 +954,9 @@ public class RestartGameInstance extends HackingGridCallback
     }
 }
 
-public class RevealPrograms extends HackingGridCallback
+public class RevealPrograms extends PatternRecognitionHackCallback
 {
-    public static func Create(controller:ref<HackingGrid>) -> ref<RevealPrograms>
+    public static func Create(controller:ref<PatternRecognitionHack>) -> ref<RevealPrograms>
     {
         let callback:ref<RevealPrograms> = new RevealPrograms();
         callback.controller = controller;
@@ -967,9 +982,9 @@ public class RevealPrograms extends HackingGridCallback
     }
 }
 
-public class OnVideoIntroductionEnded extends HackingGridCallback
+public class OnVideoIntroductionEnded extends PatternRecognitionHackCallback
 {
-    public static func Create(controller:ref<HackingGrid>) -> ref<OnVideoIntroductionEnded>
+    public static func Create(controller:ref<PatternRecognitionHack>) -> ref<OnVideoIntroductionEnded>
     {
         let callback:ref<OnVideoIntroductionEnded> = new OnVideoIntroductionEnded();
         callback.controller = controller;
@@ -985,9 +1000,9 @@ public class OnVideoIntroductionEnded extends HackingGridCallback
     }
 }
 
-public class RevealStatus extends HackingGridCallback
+public class RevealStatus extends PatternRecognitionHackCallback
 {
-    public static func Create(controller:ref<HackingGrid>) -> ref<RevealStatus>
+    public static func Create(controller:ref<PatternRecognitionHack>) -> ref<RevealStatus>
     {
         let callback:ref<RevealStatus> = new RevealStatus();
         callback.controller = controller;
@@ -1002,11 +1017,11 @@ public class RevealStatus extends HackingGridCallback
 }
 
 
-public class RevealHackingGrid extends HackingGridCallback
+public class RevealPatternRecognitionHack extends PatternRecognitionHackCallback
 {
-    public static func Create(controller:ref<HackingGrid>) -> ref<RevealHackingGrid>
+    public static func Create(controller:ref<PatternRecognitionHack>) -> ref<RevealPatternRecognitionHack>
     {
-        let callback:ref<RevealHackingGrid> = new RevealHackingGrid();
+        let callback:ref<RevealPatternRecognitionHack> = new RevealPatternRecognitionHack();
         callback.controller = controller;
         return callback;
     }
