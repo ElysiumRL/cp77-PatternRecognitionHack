@@ -11,7 +11,7 @@ enum EHackProgramPanelState
 	Failure = 3
 }
 
-public class HackProgramPanel extends inkCustomController
+public class HackProgramPanel extends HackingMinigameCustomController
 {
 	public let panelState : EHackProgramPanelState;
 

@@ -27,7 +27,7 @@ protected cb func OnAction(action: ListenerAction, consumer: ListenerActionConsu
 
 		if Equals(state, gamePSMVehicle.Default)
 		{
-			let minigameSettings:ref<PatternRecognitionHackSettings> = new PatternRecognitionHackSettings();
+			let minigameSettings:ref<PatternRecognitionHackSettings> = PatternRecognitionHackSettings.Default();
 			minigameSettings.letterType = EPatternRecognitionHackLetterType.Alphabetical;
 			PatternRecognitionHack.StartMinigame(minigameSettings, this.GetPlayerControlledObject().GetGame());
 			ListenerActionConsumer.DontSendReleaseEvent(consumer);

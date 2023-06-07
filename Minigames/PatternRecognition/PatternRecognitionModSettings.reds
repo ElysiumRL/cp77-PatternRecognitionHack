@@ -10,6 +10,12 @@ public class PatternRecognitionModSettings extends IScriptable
 
     @runtimeProperty("ModSettings.mod","CustomHackingSystem")
     @runtimeProperty("ModSettings.category","Pattern Recognition Hack")
+    @runtimeProperty("ModSettings.displayName","Debug Mode")
+    @runtimeProperty("ModSettings.description","Hold Secondary Interaction button (usually R (PC) or Y (console)) to open the panel")
+    public let enableDebug : Bool = true;
+
+    @runtimeProperty("ModSettings.mod","CustomHackingSystem")
+    @runtimeProperty("ModSettings.category","Pattern Recognition Hack")
     @runtimeProperty("ModSettings.displayName","Apparition Probability")
     @runtimeProperty("ModSettings.step", "0.05")
     @runtimeProperty("ModSettings.min", "0.0")

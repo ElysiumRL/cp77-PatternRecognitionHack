@@ -218,14 +218,14 @@ public class PatternRecognitionHack extends CustomMinigame
     //End screen (Success/Failure) text
     public let endScreenText:ref<InkTextWidget>;
 
-
     protected func CreateWidgets() -> Void
     {
         let root: ref<inkCanvas> = new inkCanvas();
         root.SetName(this.GetClassName());
         root.SetAnchor(inkEAnchor.Fill);
+        root.AlignToFill();
         
-        this.settings.gridSize = Cast<Uint32>(RandRange(4, 6));
+        //this.settings.gridSize = Cast<Uint32>(RandRange(4, 6));
         this.totalBoxes = Cast<Int32>(this.settings.gridSize * this.settings.gridSize);
 
         let uniformGridPanel : ref<inkUniformGrid> = new inkUniformGrid();
