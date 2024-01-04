@@ -101,13 +101,14 @@ public class MinigameBoxData
 
 public class PatternRecognitionHack extends CustomMinigame
 {
-    public static func StartMinigame(settings: ref<PatternRecognitionHackSettings>, gameInstance: GameInstance) -> Void
+    public static func StartMinigame(settings: ref<PatternRecognitionHackSettings>, gameInstance: GameInstance, opt accessPointAffected: ref<AccessPoint>) -> Void
     {
         if(!GameInstance.IsValid(gameInstance))
         {
-            LogChannel(n"DEBUG","[PatternRecognitionHack::StartMinigame] Game Instance provided not valid : Aborting Minigame initialization");
+           	//LogChannel(n"DEBUG","[PatternRecognitionHack::StartMinigame] Game Instance provided not valid : Aborting Minigame initialization");
+            return;
         }
-
+        
 	    let hackingMinigameBlackboard: ref<IBlackboard> = GameInstance.GetBlackboardSystem(gameInstance).Get(GetAllBlackboardDefs().HackingMinigame);
 
 	    if (IsDefined(hackingMinigameBlackboard))
@@ -118,29 +119,27 @@ public class PatternRecognitionHack extends CustomMinigame
 
             if(IsDefined(inGameMenuController))
             {
-	    	    PatternRecognitionHackPopup.Show(inGameMenuController,settings);
+	    	    PatternRecognitionHackPopup.Show(inGameMenuController,settings,accessPointAffected);
             }
             else
             {
-                LogChannel(n"DEBUG","[PatternRecognitionHack::StartMinigame] InGameMenu Game Controller not set in the HackingMinigame Blackboard Definition");
+               	//LogChannel(n"DEBUG","[PatternRecognitionHack::StartMinigame] InGameMenu Game Controller not set in the HackingMinigame Blackboard Definition");
             }
 	    }
         else
         {
-            LogChannel(n"DEBUG","[PatternRecognitionHack::StartMinigame] HackingMinigame Blackboard Definition Not found");
+           	//LogChannel(n"DEBUG","[PatternRecognitionHack::StartMinigame] HackingMinigame Blackboard Definition Not found");
         }
     }
 
-    public static func Create() -> ref<PatternRecognitionHack>
+    public static func Create(opt accessPointAffected: ref<AccessPoint>) -> ref<PatternRecognitionHack>
     {
         let minigame:ref<PatternRecognitionHack> = new PatternRecognitionHack();
         minigame.SetMinigameDefaults();
         minigame.SetMinigameInstanceDefaults();
+        minigame.accessPoint = accessPointAffected;
         return minigame;
     }
-
-    //(disabled) background video
-    private let videoBackground: ref<InkVideoWidget>;
 
     //This represents the minigame UI buttons, although they hold some texts, they don't own all the data
     private let allButtons: array<wref<HackingMinigameButton>>;
@@ -156,6 +155,10 @@ public class PatternRecognitionHack extends CustomMinigame
 
     //Total amount of boxes
     public let totalBoxes: Int32;
+    
+    //Index of the current selected box
+    //Used for UI navigation mostly
+    public let currentSelectedBoxIndex: Int32;
 
     //Progress bar displaying the instance time left
     protected let instanceProgressBar: wref<CustomProgressBar>;
@@ -344,10 +347,7 @@ public class PatternRecognitionHack extends CustomMinigame
         this.remainingTimeText.textWidget.SetFontSize(54);
         this.remainingTimeText.root.SetOpacity(0.0);
         
-        //this.videoBackground = InkVideoWidget.CreateBackground(root, 1.0);
         this.introVideo = InkVideoWidget.CreateBackground(root, 1.0, r"base\\movies\\fullscreen\\reboot-skin.bk2");
-
-        //this.answerText = label;
         this.root = root;
 
         this.uniformGridPanel = uniformGridPanel;
@@ -386,9 +386,6 @@ public class PatternRecognitionHack extends CustomMinigame
     protected cb func OnInitialize() -> Void 
     {
         super.OnInitialize();
-
-        //this.videoBackground.PlayLooped(r"base\\movies\\fullscreen\\common\\finalboards\\rain_splash.bk2", n"None");
-        this.videoBackground.video.SetOpacity(0.0);
 
         //Play Introduction Video
         this.introVideo.video.Play();
@@ -436,34 +433,33 @@ public class PatternRecognitionHack extends CustomMinigame
         switch(newState)
         {
         case HackingMinigameState.Unknown:
+           	//LogChannel(n"DEBUG","Unknown HackingMinigameState set, this should not happen");
             break;     
         case HackingMinigameState.InProgress:
             this.StartGameInstance();
             break;
         case HackingMinigameState.Succeeded:
-            LogChannel(n"DEBUG","Success");
             let successCallback:ref<OnGameSuccess> = OnGameSuccess.Create(this);
             GameInstance.GetDelaySystem(this.GetGame()).DelayCallback(successCallback, 1.0, false);
             break;
         case HackingMinigameState.Failed:
             let failureCallback:ref<OnGameFailure> = OnGameFailure.Create(this);
             GameInstance.GetDelaySystem(this.GetGame()).DelayCallback(failureCallback, 1.0, false);
-            LogChannel(n"DEBUG","Failure");
             break;
         }
     }
 
-    public func OnMinigameSuccess()
-    {
-        let successCallback:ref<OnGameSuccess> = OnGameSuccess.Create(this);
-        GameInstance.GetDelaySystem(this.GetGame()).DelayCallback(successCallback, 1.0, false);
-    }
-
-    public func OnMinigameFailure()
-    {
-        let failureCallback:ref<OnGameFailure> = OnGameFailure.Create(this);
-        GameInstance.GetDelaySystem(this.GetGame()).DelayCallback(failureCallback, 1.0, false);
-    }
+//    public func OnMinigameSuccess()
+//    {
+//        let successCallback:ref<OnGameSuccess> = OnGameSuccess.Create(this);
+//        GameInstance.GetDelaySystem(this.GetGame()).DelayCallback(successCallback, 1.0, false);
+//    }
+//
+//    public func OnMinigameFailure()
+//    {
+//        let failureCallback:ref<OnGameFailure> = OnGameFailure.Create(this);
+//        GameInstance.GetDelaySystem(this.GetGame()).DelayCallback(failureCallback, 1.0, false);
+//    }
 
     public func SetMinigameInstanceState(newState: HackingMinigameState) -> Void
     {
@@ -512,6 +508,7 @@ public class PatternRecognitionHack extends CustomMinigame
         {
             this.shouldUpdateGameTimers = true;
             this.isInGame = true;
+
             this.allPrograms[this.currentProgramIndex].SetPanelState(EHackProgramPanelState.InProgress);
             for button in this.allButtons
             {
@@ -519,11 +516,15 @@ public class PatternRecognitionHack extends CustomMinigame
                 button.m_label.SetTintColor(MainColors.Grey());
                 button.SetHoveredState(false);
                 button.m_root.SetInteractive(true);
-
             }
+
             this.SetInstanceDefaultValues();
 
             this.answerText.SetText(this.GetAnswerText(true));
+        }
+        else
+        {
+            //LogChannel(n"DBEUG","Can't start Game Instance");
         }
     }
 
@@ -600,6 +601,7 @@ public class PatternRecognitionHack extends CustomMinigame
         {
             if(this.allButtons[i].indexInGrid == index)
             {
+                this.currentSelectedBoxIndex = index;
                 while (j < Cast<Int32>(this.settings.answerLength))
                 {
                     this.allButtons[this.GetBoxIndexWrapped(i + j, this.totalBoxes)].SetHoveredState(true);
@@ -780,8 +782,7 @@ public class PatternRecognitionHack extends CustomMinigame
         }
     }
 
-    //Thanks Github/StackOverflow
-    //The previous GetBoxIndexWrapped was a bit unoptimized. This oneliner seems to be working very nicely
+    //Thanks Github & StackOverflow
     public func GetBoxIndexWrapped(integer:Int32, maximum: Int32) -> Int32
     {
         return integer >= 0 ? integer % maximum : (integer % maximum + maximum) % maximum;
@@ -790,10 +791,10 @@ public class PatternRecognitionHack extends CustomMinigame
     public func GenerateAllBoxContents() -> array<ref<MinigameBoxData>>
     {
         let allContents: array<ref<MinigameBoxData>>;
-        let letterPattern:array<String> = this.GetBoxText();
+        let letterPattern: array<String> = this.GetBoxText();
 
-        let i:Int32 = 0;
-        let symbolAmount:Int32 = 0;
+        let i: Int32 = 0;
+        let symbolAmount: Int32 = 0;
 
         while(i < this.totalBoxes)
         {
@@ -995,6 +996,7 @@ public class OnVideoIntroductionEnded extends PatternRecognitionHackCallback
     {
         this.controller.remainingTimeText.textWidget.SetText("STATUS : ON");
         this.controller.remainingTimeText.textWidget.SetTintColor(MainColors.ActiveBlue());
+        
         this.controller.RegisterStartButtonListeners();
         this.controller.RegisterQuitButtonListeners();
     }

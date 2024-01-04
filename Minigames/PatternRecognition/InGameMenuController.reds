@@ -50,7 +50,7 @@ private final func RegisterGlobalBlackboards() -> Void
 }
 
 //Entry point for access points
-@wrapMethod(Device)
+@wrapMethod(AccessPoint)
 private final func DisplayConnectionWindowOnPlayerHUD(shouldDisplay: Bool, attempt: Int32) -> Void
 {
 	let modSettings = new PatternRecognitionModSettings();
@@ -60,14 +60,13 @@ private final func DisplayConnectionWindowOnPlayerHUD(shouldDisplay: Bool, attem
 		return;
 	}
 
-	if(NotEquals(this as AccessPoint, null))
+	if (NotEquals(this as AccessPoint, null))
 	{
 		let minigameSettings:ref<PatternRecognitionHackSettings> = PatternRecognitionHackSettings.Default();
-		PatternRecognitionHack.StartMinigame(minigameSettings, this.GetGame());
-
-		this.TogglePersonalLink(false, this.GetPlayerMainObject());
-		this.TurnOffDevice();
-		this.DeactivateDevice();
+		PatternRecognitionHack.StartMinigame(minigameSettings, this.GetGame(),this);
+		//this.TogglePersonalLink(false, this.GetPlayerMainObject());
+		//this.TurnOffDevice();
+		//this.DeactivateDevice();
 	}
 	else
 	{

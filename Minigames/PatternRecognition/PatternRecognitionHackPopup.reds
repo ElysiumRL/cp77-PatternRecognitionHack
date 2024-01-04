@@ -24,10 +24,10 @@ public class PatternRecognitionHackPopup extends CustomMinigameHackPopup
 		super.OnInitialize();
 	}
 
-	public static func Show(requester: ref<inkGameController>, minigameSettings: ref<PatternRecognitionHackSettings>) -> Void
+	public static func Show(requester: ref<inkGameController>, minigameSettings: ref<PatternRecognitionHackSettings>,opt accessPointAffected: ref<AccessPoint>) -> Void
 	{
 		let popup: ref<PatternRecognitionHackPopup> = new PatternRecognitionHackPopup();
-		popup.minigameRef = PatternRecognitionHack.Create();
+		popup.minigameRef = PatternRecognitionHack.Create(accessPointAffected);
 		popup.minigameRef.settings = minigameSettings;
 		popup.Open(requester);
 	}

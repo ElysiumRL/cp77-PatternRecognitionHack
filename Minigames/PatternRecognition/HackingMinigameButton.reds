@@ -19,7 +19,8 @@ public class HackingMinigameButton extends CustomButton
 	public let indexInGrid:Int32 = 0;
 
 //TODO: Replace this
-	protected func CreateWidgets() -> Void {
+	protected func CreateWidgets() -> Void
+	{
 		let root: ref<inkCanvas> = new inkCanvas();
 		root.SetName(n"button");
 		root.SetSize(100.0, 100.0);
