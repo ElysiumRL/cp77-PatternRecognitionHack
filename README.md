@@ -67,6 +67,8 @@ These are the features that have yet to be made before full release
 - Localization support
 - User Hints on failed compilation
 
+The code also needs to be heavily refactored before the 1.0 release
+
 # Special Thanks
 - jekky - [Redscript](https://github.com/jac3km4/redscript)
 - yamashi - [CET](https://www.nexusmods.com/cyberpunk2077/mods/107)
