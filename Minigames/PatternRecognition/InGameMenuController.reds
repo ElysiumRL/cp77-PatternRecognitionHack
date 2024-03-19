@@ -49,21 +49,22 @@ private final func RegisterGlobalBlackboards() -> Void
 	}
 }
 
-//Entry point for access points
-@wrapMethod(AccessPoint)
+// Entry point for access points
+@wrapMethod(Device)
 private final func DisplayConnectionWindowOnPlayerHUD(shouldDisplay: Bool, attempt: Int32) -> Void
 {
-	let modSettings = new PatternRecognitionModSettings();
-	if(!modSettings.isEnabled || RandF() > modSettings.hackOverrideProbability)
+	// Fix for redscript no longer allowing to wrap this method using AccessPoint class.
+	// Device should now be used for this specific wrap, but since Device is litteraly the entire universe...
+	if(NotEquals(this as AccessPoint, null))
 	{
-		wrappedMethod(shouldDisplay, attempt);
-		return;
-	}
-
-	if (NotEquals(this as AccessPoint, null))
-	{
+		let modSettings = new PatternRecognitionModSettings();
+		if(!modSettings.isEnabled || RandF() > modSettings.hackOverrideProbability)
+		{
+			wrappedMethod(shouldDisplay, attempt);
+			return;
+		}
 		let minigameSettings:ref<PatternRecognitionHackSettings> = PatternRecognitionHackSettings.Default();
-		PatternRecognitionHack.StartMinigame(minigameSettings, this.GetGame(),this);
+		PatternRecognitionHack.StartMinigame(minigameSettings, this.GetGame(),this as AccessPoint);
 		//this.TogglePersonalLink(false, this.GetPlayerMainObject());
 		//this.TurnOffDevice();
 		//this.DeactivateDevice();
